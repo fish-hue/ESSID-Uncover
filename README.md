@@ -10,11 +10,11 @@ Once started the scan runs indefinitely, press Ctrl+c to stop.
 
 All results are saved in the following .txt files:
 
-  known.txt 
+ - known.txt 
   
-  unknown.txt
+ - unknown.txt
   
-  uncovered.txt
+ - uncovered.txt
 
 In this script, the hidden network's name can be discovered through the `uncover_ap` method of the `SniffThread` class. 
 
