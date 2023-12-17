@@ -10,11 +10,11 @@ Once started the scan runs indefinitely, press Ctrl+c to stop.
 
 All results are saved in the following .txt files:
 
-  known.txt <------ all MAC addresses for public SSIDs
+  known.txt 
   
-  unknown.txt <----- all MAC addresses for hidden BSSIDs
+  unknown.txt
   
-  uncovered.txt <----- discovered hidden network names
+  uncovered.txt
 
 In this script, the hidden network's name can be discovered through the `uncover_ap` method of the `SniffThread` class. 
 
