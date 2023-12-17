@@ -1,8 +1,7 @@
 from datetime import datetime
 from scapy.all import *
 import threading
-import hexdump
-import Queue
+import queue
 import os
 
 
@@ -30,7 +29,7 @@ class SniffThread (threading.Thread):
         try:
             thread.join()
         except KeyboardInterrupt:
-            print "HELLO"
+            print ("HELLO")
 
     def uncover_ap(self, pkt):
         try:
@@ -46,11 +45,12 @@ class SniffThread (threading.Thread):
                         if pkt.addr2 not in self.ap_list.keys():
                             self.ap_list[pkt.addr2] = pkt.info
                             with open("known.txt", "a") as k:
-                                k.write("MAC: " + pkt.addr2 + " ESSID: " + pkt.info + "\n")
+                                k.write("MAC: " + pkt.addr2 + " ESSID: " + pkt.info.decode() + "\n")
+
 
                 elif pkt.subtype == 5:
                     if pkt.addr2 not in self.uncovered_ap.keys() and pkt.addr2 in self.unknown_ap:
-                        print "MAC: " + pkt.addr2 + " ESSID: " + pkt.info
+                        print ("MAC: " + pkt.addr2 + " ESSID: " + pkt.info)
                         with open("uncovered.txt", "a") as k:
                             k.write("MAC: " + pkt.addr2 + " ESSID: " + pkt.info + "\n")
                         self.uncovered_ap[pkt.addr2] = pkt.info
@@ -66,7 +66,7 @@ class SniffThread (threading.Thread):
             self._stop_event.set()
 
     def is_null(self, ssid):
-        if not ssid or hexdump.dump(ssid) == "00 00 00 00 00 00 00" or ssid is None or ssid == "":
+        if not ssid or ssid == "\x00"*len(ssid) or ssid is None or ssid == "":
             return True
         else:
             return False
@@ -82,9 +82,9 @@ def get_iface():
     no = 1
     ifaces = os.listdir("/sys/class/net")
     for iface in ifaces:
-        print "["+str(no)+"] "+iface
+        print ("["+str(no)+"] "+iface)
         no += 1
-    choice = raw_input("Enter Wireless Interface to Use: ")
+    choice = input("Enter Wireless Interface to Use: ")  # replace raw_input with input
     return ifaces[int(choice)-1]
 
 
@@ -103,7 +103,7 @@ def set_monitor(op, iface):
     elif op == 0:
         os.system("sudo iw dev "+iface+" set type managed")
     else:
-        print "Invalid choice"
+        print ("Invalid choice")
     os.system("sudo ifconfig " + iface + " up")
     return in_monitor(iface)
 
@@ -112,17 +112,17 @@ def monitor_mode(iface):
     is_monitor = in_monitor(iface)
 
     if is_monitor:
-        print "[+] Monitor mode enabled on " + iface
+        print ("[+] Monitor mode enabled on " + iface)
     else:
         while not is_monitor:
-            print "[x] Monitor mode not enabled on " + iface + "\n[+] Enabling Monitor mode"
+            print ("[x] Monitor mode not enabled on " + iface + "\n[+] Enabling Monitor mode")
             is_monitor = set_monitor(1, iface)
             if is_monitor:
-                print "[+] Monitor mode enabled on " + iface
+                print ("[+] Monitor mode enabled on " + iface)
 
 
 def clean_up(iface):
-    print "[+] Cleaning up the goodness :("
+    print ("[+] Cleaning up the goodness :(")
     set_monitor(0, iface)
     exit()
 
@@ -130,8 +130,8 @@ def clean_up(iface):
 def main():
     interface = get_iface()
     monitor_mode(interface)
-    queue = Queue.Queue()
-    thread = SniffThread(interface, queue)
+    q = queue.Queue()  # replace Queue.Queue() with queue.Queue()
+    thread = SniffThread(interface, q)
     try:
         pass
     except KeyboardInterrupt:
@@ -142,7 +142,7 @@ def main():
 if __name__ == "__main__":
     uid = os.getuid()
     if uid != 0:
-        print "No mortals are allowed. Please switch to god-mode (sudo) :)"
+        print ("No mortals are allowed. Please switch to god-mode (sudo) :)")
         exit()
     else:
         main()
