@@ -5,7 +5,12 @@ import queue
 import os
 import time
 from tqdm import tqdm  # Progress bar library
+from scapy.all import sniff
 
+def packet_callback(pkt):
+    print(pkt.summary())
+
+sniff(iface="wlan0mon", prn=packet_callback, count=10)
 
 class SniffThread(threading.Thread):
     def __init__(self, iface, queue):
@@ -23,6 +28,9 @@ class SniffThread(threading.Thread):
         self.initialize_logs()
 
     def initialize_logs(self):
+        self.check_file_permissions("unknown.txt")
+        self.check_file_permissions("known.txt")
+        self.check_file_permissions("uncovered.txt")
         with open("unknown.txt", "a") as k:
             k.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "\n")
         with open("known.txt", "a") as k:
@@ -30,33 +38,52 @@ class SniffThread(threading.Thread):
         with open("uncovered.txt", "a") as k:
             k.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "\n")
 
+    def check_file_permissions(self, filename):
+        """Check if the file is writable."""
+        try:
+            with open(filename, "a"):
+                pass
+        except IOError as e:
+            print(f"Error: File {filename} is not writable. {e}")
+            exit(1)
+
     def uncover_ap(self, pkt):
         try:
-            if pkt.type == 0:  # Management frame
-                if pkt.subtype == 8:  # Beacon
-                    essid = pkt.info
-                    if self.is_null(essid):
-                        if pkt.addr2 not in self.unknown_ap:
-                            self.unknown_ap.append(pkt.addr2)
-                            self.log_to_file("unknown.txt", f"MAC: {pkt.addr2}\n")
-                    else:  # Known ESSID
-                        if pkt.addr2 not in self.ap_list:
-                            self.ap_list[pkt.addr2] = essid
-                            self.log_to_file("known.txt", f"MAC: {pkt.addr2} ESSID: {essid.decode()}\n")
+            print(f"Received a packet: {pkt}")  # Debug line to see all packets received
+            if pkt.haslayer(Dot11):  # Check if the packet is a 802.11 (Wi-Fi) packet
+                print(f"Packet type: {pkt.type}, subtype: {pkt.subtype}")  # Debug statement
 
-                elif pkt.subtype == 5:  # Probe Response
-                    if pkt.addr2 not in self.uncovered_ap and pkt.addr2 in self.unknown_ap:
-                        print(f"MAC: {pkt.addr2} ESSID: {pkt.info}")
-                        self.log_to_file("uncovered.txt", f"MAC: {pkt.addr2} ESSID: {pkt.info}\n")
-                        self.uncovered_ap[pkt.addr2] = pkt.info
+                if pkt.type == 0:  # Management frame
+                    print(f"Management frame detected")  # Debug statement
+                    if pkt.subtype == 8:  # Beacon
+                        essid = pkt.info
+                        print(f"Beacon frame detected, ESSID: {essid}, MAC: {pkt.addr2}")  # Debug statement
+                        
+                        if self.is_null(essid):
+                            if pkt.addr2 not in self.unknown_ap:
+                                self.unknown_ap.append(pkt.addr2)
+                                self.log_to_file("unknown.txt", f"MAC: {pkt.addr2}\n")
+                        else:  # Known ESSID
+                            if pkt.addr2 not in self.ap_list:
+                                self.ap_list[pkt.addr2] = essid
+                                self.log_to_file("known.txt", f"MAC: {pkt.addr2} ESSID: {essid.decode()}\n")
+
+                    elif pkt.subtype == 5:  # Probe Response
+                        print(f"Probe Response detected, MAC: {pkt.addr2}, ESSID: {pkt.info}")  # Debug statement
+                        
+                        if pkt.addr2 not in self.uncovered_ap and pkt.addr2 in self.unknown_ap:
+                            self.log_to_file("uncovered.txt", f"MAC: {pkt.addr2} ESSID: {pkt.info}\n")
+                            self.uncovered_ap[pkt.addr2] = pkt.info
 
             self.list['kap'] = self.ap_list
             self.list['ucap'] = self.uncovered_ap
             self.queue.put(self.list)
-        except AttributeError:
-            pass
+        except AttributeError as e:
+            print(f"AttributeError: {e}")  # Debug statement
 
     def log_to_file(self, filename, data):
+        """Log data to a file and print a debug message."""
+        print(f"Logging data to {filename}: {data}")  # Debug line
         with open(filename, "a") as k:
             k.write(data)
 
@@ -111,13 +138,11 @@ def set_monitor(op, iface):
 def monitor_mode(iface):
     """Enable monitor mode on the interface if not already enabled."""
     if in_monitor(iface):
-        logging.info(f"Monitor mode already enabled on {iface}")
         print("[+] Monitor mode already enabled on " + iface)  # Changed message to reflect existing status
     else:
         while True:
             print(f"[x] Monitor mode not enabled on {iface}\n[+] Enabling monitor mode...")
             if set_monitor(1, iface):
-                logging.info(f"Monitor mode enabled on {iface}")
                 print("[+] Monitor mode has been enabled on " + iface)
                 break
 
@@ -146,6 +171,7 @@ def main():
             if not q.empty():
                 with data_lock:  # Ensure thread-safe access
                     data = q.get()
+                    print(f"Data from queue: {data}")  # Debug print to verify the data in the queue
                     detected_networks.update(data['kap'].keys())
                     
                     if detected_networks:
