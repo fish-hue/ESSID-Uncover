@@ -1,4 +1,4 @@
-# ESSID-Uncover
+# ESSID-Uncover - A Work in Progress...
 A tool to uncover hidden SSIDs
 
 Usage:
